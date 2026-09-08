@@ -11,12 +11,21 @@ def create_app():
     app = Flask(__name__)
     app.config['MAX_CONTENT_LENGTH'] = 20 * 1024 * 1024  # 20 MB max payload
 
-    # Register all API blueprints under /api
+    # Register all API blueprints
     app.register_blueprint(health_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(predictions_bp)
     app.register_blueprint(stats_bp)
     app.register_blueprint(upload_bp)
+
+    # Direct health-check endpoint
+    @app.route('/api/health', methods=['GET'])
+    def direct_health():
+        return {
+            "success": True,
+            "message": "FruitVision DL backend is operational",
+            "api": "healthy"
+        }, 200
 
     # CORS support for development
     @app.after_request
