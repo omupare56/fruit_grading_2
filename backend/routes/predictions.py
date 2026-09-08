@@ -1,7 +1,7 @@
 import json
-from flask import Blueprint, request
+from flask import Blueprint, request, jsonify
 from backend.utils.response import api_success, api_error
-from backend.auth.jwt_handler import token_required
+from backend.auth.jwt_handler import token_required, prediction_token_handler
 from backend.utils.image_utils import validate_image_stream
 from backend.services.prediction_service import process_prediction_pipeline
 from backend.database.connection import get_collection
@@ -9,12 +9,14 @@ from backend.database.connection import get_collection
 predictions_bp = Blueprint('predictions', __name__)
 
 @predictions_bp.route('/api/predict', methods=['POST'])
-@token_required
+@prediction_token_handler
 def predict(current_user):
     """
     Core prediction endpoint.
     Accepts multipart/form-data with 'image' file.
     Or benchmark evaluation flag with benchmark metadata.
+    In REVIEW_DEMO_MODE=true, operates without requiring a login token (uses review-demo-user).
+    In REVIEW_DEMO_MODE=false, requires valid authentication.
     """
     user_id = current_user.get("id")
 
@@ -62,10 +64,22 @@ def predict(current_user):
     if err:
         return api_error(code="MODEL_WEIGHTS_NOT_CONFIGURED", message=err, status_code=422)
 
-    return api_success(
-        data=result,
-        message=f"Analyzed {result['fruit_count']} fruits successfully."
-    )
+    is_demo = result.get("is_demo", False)
+    mode = "demo" if is_demo else "production"
+    msg = "Review demo analysis completed successfully." if is_demo else f"Analyzed {result.get('fruit_count', 0)} fruits successfully."
+
+    result_data = {
+        **result,
+        "results": result.get("detections") or result.get("fruits") or [],
+        "fruits": result.get("fruits") or result.get("detections") or []
+    }
+
+    return jsonify({
+        "success": True,
+        "mode": mode,
+        "message": msg,
+        "data": result_data
+    }), 200
 
 @predictions_bp.route('/api/predictions', methods=['GET'])
 @token_required

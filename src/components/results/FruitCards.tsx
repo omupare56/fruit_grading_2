@@ -95,21 +95,31 @@ export const FruitCards: React.FC<FruitCardsProps> = ({
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
-          <h3 className="text-base font-bold text-white tracking-tight flex items-center gap-2">
-            <span>Individual Fruit Crops & Quality Analysis ({fruits.length})</span>
-            <span className="text-xs font-mono font-medium px-2 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-              YOLO Cropping → EfficientNet V2
-            </span>
-          </h3>
-          <p className="text-xs text-slate-400">
-            Each isolated bounding crop is resized, normalized, and classified into quality indices
-          </p>
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-bold text-white tracking-tight">
+              Individual Fruit Crops & Quality Analysis ({fruits.length})
+            </h3>
+            {isDemo && (
+              <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold text-xs border border-amber-500/30">
+                REVIEW DEMO
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 text-xs text-slate-400 mt-1">
+            <span className="font-semibold text-slate-300">EfficientNet V2</span>
+            {isDemo && (
+              <span className="px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-400 font-mono text-[10px] border border-amber-500/30 font-bold">
+                REVIEW DEMO
+              </span>
+            )}
+            <span>• Individual Fruit Quality Assessment</span>
+          </div>
         </div>
 
         {isDemo && (
           <div className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center gap-1.5 shrink-0">
             <Info className="w-3.5 h-3.5" />
-            <span>Quality Assessment: Evaluation Mode Output</span>
+            <span>Sample Classifications — Review Demo</span>
           </div>
         )}
       </div>
@@ -155,8 +165,13 @@ export const FruitCards: React.FC<FruitCardsProps> = ({
                     <div>
                       <div className="flex items-center gap-1.5">
                         <span className="font-bold text-white text-base">
-                          Fruit Crop #{fruitId}
+                          Fruit #{fruitId}
                         </span>
+                        {isDemo && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] border border-amber-500/30">
+                            Demo Crop
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-slate-300 font-medium mt-0.5">
                         Type: <span className="text-white font-semibold">{fruitType}</span>
@@ -185,14 +200,26 @@ export const FruitCards: React.FC<FruitCardsProps> = ({
                   </span>
                 </div>
 
-                {/* Quality Score & Index (Requirement 6) */}
+                {/* Quality Score & Index */}
                 <div className="p-3 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-2.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="text-slate-400">Quality Index:</span>
-                    <span className={`px-2 py-0.5 rounded font-bold border text-xs ${qualityIdx.color}`}>
-                      {qualityIdx.label} Quality
-                    </span>
+                    <span className="text-slate-400">Quality:</span>
+                    <span className="text-white font-bold">{qClass}</span>
                   </div>
+
+                  {isDemo ? (
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400">Confidence:</span>
+                      <span className="text-amber-300 font-mono font-semibold">Demo</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
+                      <span className="text-slate-400">Quality Index:</span>
+                      <span className={`px-2 py-0.5 rounded font-bold border text-xs ${qualityIdx.color}`}>
+                        {qualityIdx.label} Quality
+                      </span>
+                    </div>
+                  )}
 
                   <div className="flex items-center justify-between text-xs pt-1 border-t border-slate-800/60">
                     <span className="text-slate-400">Estimated Shelf Life:</span>
@@ -210,7 +237,7 @@ export const FruitCards: React.FC<FruitCardsProps> = ({
                 {/* Demo notice tag */}
                 {isDemo && (
                   <div className="text-[10px] text-amber-400/90 font-mono text-center">
-                    Evaluation Mode Output (Weights not loaded)
+                    Review Demo Sample Output (No weights loaded)
                   </div>
                 )}
               </div>

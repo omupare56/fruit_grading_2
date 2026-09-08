@@ -56,13 +56,23 @@ class ApiClient {
   }
 
   public getToken(): string | null {
-    if (!this.token && typeof window !== 'undefined') {
-      this.token = localStorage.getItem(TOKEN_STORAGE_KEY);
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem(TOKEN_STORAGE_KEY);
+      if (!stored || stored === 'undefined' || stored === 'null' || stored.trim() === '') {
+        this.token = null;
+        localStorage.removeItem(TOKEN_STORAGE_KEY);
+      } else {
+        this.token = stored;
+      }
     }
     return this.token;
   }
 
   public setToken(token: string, user?: AuthUser): void {
+    if (!token || token === 'undefined' || token === 'null' || token.trim() === '') {
+      this.clearToken();
+      return;
+    }
     this.token = token;
     if (typeof window !== 'undefined') {
       localStorage.setItem(TOKEN_STORAGE_KEY, token);
@@ -112,7 +122,7 @@ class ApiClient {
     };
 
     const token = this.getToken();
-    if (token && !headers['Authorization']) {
+    if (token && token.trim() !== '' && !headers['Authorization']) {
       headers['Authorization'] = `Bearer ${token}`;
     }
 
@@ -140,6 +150,9 @@ class ApiClient {
       const json = await response.json();
 
       if (!response.ok || json.success === false) {
+        if (response.status === 401 && endpoint === '/api/auth/me') {
+          this.clearToken();
+        }
         const errorMessage =
           json.error?.message ||
           json.message ||

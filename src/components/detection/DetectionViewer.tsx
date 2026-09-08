@@ -108,6 +108,21 @@ export const DetectionViewer: React.FC<DetectionViewerProps> = ({
 
   return (
     <div className="space-y-4">
+      {/* Requirement 8: Demo Detection Banner */}
+      {isDemo && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs shadow-md">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-amber-300">YOLO Detection</span>
+            <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-mono font-bold text-[10px] border border-amber-500/30">
+              REVIEW DEMO
+            </span>
+          </div>
+          <span className="text-amber-200/90 font-medium">
+            Sample Detection Overlay — Review Demo
+          </span>
+        </div>
+      )}
+
       {/* Top Controls Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-900 border border-slate-800 text-xs">
         <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">

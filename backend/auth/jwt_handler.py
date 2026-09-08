@@ -38,52 +38,109 @@ def decode_token(token: str):
     except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
         return None
 
+def is_review_demo_mode() -> bool:
+    val = os.environ.get("REVIEW_DEMO_MODE")
+    if val is None:
+        val = os.environ.get("DEMO_MODE", "true")
+    return str(val).lower() in ("true", "1", "yes")
+
+def get_current_user(allow_demo: bool = False):
+    """
+    Extracts the authenticated user from request header or cookie.
+    If allow_demo is True and review demo mode is active, returns a mock
+    review-demo-user when no valid token is present.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    token = None
+
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1].strip()
+    elif "token" in request.cookies:
+        token = request.cookies.get("token")
+
+    if token in ("undefined", "null", ""):
+        token = None
+
+    if not token:
+        if allow_demo and is_review_demo_mode():
+            return {
+                "id": "review-demo-user",
+                "email": "demo-reviewer@fruitvision.edu",
+                "name": "Review Demo User",
+                "institution": "B.Tech Academic Review",
+                "role": "Reviewer",
+                "is_demo_user": True
+            }, None
+        return None, ("AUTHENTICATION_REQUIRED", "Please log in to continue.", 401)
+
+    payload = decode_token(token)
+    if not payload:
+        if allow_demo and is_review_demo_mode():
+            return {
+                "id": "review-demo-user",
+                "email": "demo-reviewer@fruitvision.edu",
+                "name": "Review Demo User",
+                "institution": "B.Tech Academic Review",
+                "role": "Reviewer",
+                "is_demo_user": True
+            }, None
+        return None, ("INVALID_TOKEN", "Authentication session is invalid or has expired. Please log in again.", 401)
+
+    # Look up user in DB if connected
+    user_id = payload.get("sub")
+    users_col = get_collection("users")
+    current_user = None
+
+    if users_col is not None:
+        try:
+            current_user = users_col.find_one({"id": user_id}, {"password_hash": 0, "_id": 0})
+        except Exception:
+            pass
+
+    if not current_user:
+        # Fallback to payload metadata if database is disconnected
+        current_user = {
+            "id": user_id,
+            "email": payload.get("email"),
+            "name": payload.get("name"),
+            "role": payload.get("role", "Researcher"),
+            "institution": payload.get("institution", "B.Tech Review")
+        }
+
+    return current_user, None
+
 def token_required(f):
     """
-    Decorator to protect routes requiring authentication.
+    Decorator to protect routes requiring real authentication.
     Passes current_user dict into decorated route.
     """
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        token = None
-
-        if auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1].strip()
-        elif "token" in request.cookies:
-            token = request.cookies.get("token")
-
-        if not token:
+        current_user, err = get_current_user(allow_demo=False)
+        if err:
             return api_error(
-                code="UNAUTHORIZED",
-                message="Authentication token is missing. Please log in to proceed.",
-                status_code=401
+                code=err[0],
+                message=err[1],
+                status_code=err[2]
             )
+        return f(current_user, *args, **kwargs)
 
-        payload = decode_token(token)
-        if not payload:
+    return decorated
+
+def prediction_token_handler(f):
+    """
+    Decorator for /api/predict: allows unauthenticated requests in REVIEW_DEMO_MODE=true
+    using review-demo-user, but requires valid authentication in production (REVIEW_DEMO_MODE=false).
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        current_user, err = get_current_user(allow_demo=True)
+        if err:
             return api_error(
-                code="INVALID_TOKEN",
-                message="Authentication session is invalid or has expired. Please log in again.",
-                status_code=401
+                code=err[0],
+                message=err[1],
+                status_code=err[2]
             )
-
-        # Look up user in DB if connected
-        user_id = payload.get("sub")
-        users_col = get_collection("users")
-        current_user = None
-
-        if users_col is not None:
-            current_user = users_col.find_one({"id": user_id}, {"password_hash": 0, "_id": 0})
-
-        if not current_user:
-            # Fallback to payload metadata if database is disconnected
-            current_user = {
-                "id": user_id,
-                "email": payload.get("email"),
-                "name": payload.get("name")
-            }
-
         return f(current_user, *args, **kwargs)
 
     return decorated

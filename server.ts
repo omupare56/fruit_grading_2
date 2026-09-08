@@ -88,7 +88,8 @@ interface AuthRequest extends Request {
 }
 
 function isDemoMode(): boolean {
-  return process.env.DEMO_MODE !== 'false';
+  const envVal = process.env.REVIEW_DEMO_MODE || process.env.DEMO_MODE || 'true';
+  return envVal.toLowerCase() !== 'false' && envVal.toLowerCase() !== '0';
 }
 
 function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
@@ -100,18 +101,12 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) 
     if (match) token = match[1];
   }
 
+  if (token === 'undefined' || token === 'null' || !token || token.trim() === '') {
+    token = null;
+  }
+
   if (!token) {
-    if (isDemoMode()) {
-      req.user = {
-        id: 'demo_reviewer',
-        email: 'reviewer@fruitvision.edu',
-        name: 'B.Tech Project Reviewer',
-        institution: 'B.Tech IT Department',
-        role: 'Reviewer',
-      };
-      return next();
-    }
-    return apiError(res, 'UNAUTHORIZED', 'Authentication required. Please log in.', 401);
+    return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
   }
 
   try {
@@ -124,19 +119,98 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) 
       role: decoded.role || 'Researcher',
     };
     next();
-  } catch (err) {
-    if (isDemoMode()) {
-      req.user = {
-        id: 'demo_reviewer',
-        email: 'reviewer@fruitvision.edu',
-        name: 'B.Tech Project Reviewer',
-        institution: 'B.Tech IT Department',
-        role: 'Reviewer',
-      };
-      return next();
-    }
+  } catch {
     return apiError(res, 'INVALID_TOKEN', 'Session has expired or is invalid. Please log in again.', 401);
   }
+}
+
+function authenticatePrediction(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  let token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token && req.headers.cookie) {
+    const match = req.headers.cookie.match(/token=([^;]+)/);
+    if (match) token = match[1];
+  }
+
+  if (token === 'undefined' || token === 'null' || !token || token.trim() === '') {
+    token = null;
+  }
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      req.user = {
+        id: decoded.sub || decoded.id,
+        email: decoded.email,
+        name: decoded.name,
+        institution: decoded.institution || 'B.Tech IT Department',
+        role: decoded.role || 'Researcher',
+      };
+      return next();
+    } catch {
+      if (!isDemoMode()) {
+        return apiError(res, 'INVALID_TOKEN', 'Session has expired or is invalid. Please log in again.', 401);
+      }
+    }
+  }
+
+  // If no token or token was invalid in demo mode:
+  if (isDemoMode()) {
+    req.user = {
+      id: 'review-demo-user',
+      email: 'demo-reviewer@fruitvision.edu',
+      name: 'Review Demo User',
+      institution: 'B.Tech Academic Review',
+      role: 'Reviewer',
+    };
+    return next();
+  }
+
+  return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
+}
+
+function optionalOrDemoAuth(req: AuthRequest, res: Response, next: NextFunction) {
+  const authHeader = req.headers['authorization'];
+  let token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token && req.headers.cookie) {
+    const match = req.headers.cookie.match(/token=([^;]+)/);
+    if (match) token = match[1];
+  }
+
+  if (token === 'undefined' || token === 'null' || !token || token.trim() === '') {
+    token = null;
+  }
+
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      req.user = {
+        id: decoded.sub || decoded.id,
+        email: decoded.email,
+        name: decoded.name,
+        institution: decoded.institution || 'B.Tech IT Department',
+        role: decoded.role || 'Researcher',
+      };
+      return next();
+    } catch {
+      // Ignore invalid token if demo mode is enabled
+    }
+  }
+
+  if (isDemoMode()) {
+    req.user = {
+      id: 'review-demo-user',
+      email: 'demo-reviewer@fruitvision.edu',
+      name: 'Review Demo User',
+      institution: 'B.Tech Academic Review',
+      role: 'Reviewer',
+    };
+    return next();
+  }
+
+  return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
 }
 
 // Model Configuration Inspectors
@@ -343,7 +417,7 @@ app.post('/api/upload', upload.single('image'), (req: Request, res: Response) =>
 });
 
 // 7. POST /api/predict
-app.post('/api/predict', authenticateToken, upload.single('image'), async (req: AuthRequest, res: Response) => {
+app.post('/api/predict', authenticatePrediction, upload.single('image'), async (req: AuthRequest, res: Response) => {
   if (!req.file) {
     return apiError(res, 'MISSING_FILE', 'No image file provided for analysis.', 400);
   }
@@ -470,7 +544,7 @@ app.post('/api/predict', authenticateToken, upload.single('image'), async (req: 
 
   const record = {
     prediction_id: predictionId,
-    user_id: req.user?.id || 'anonymous',
+    user_id: req.user?.id || (isDemo ? 'review-demo-user' : 'anonymous'),
     created_at: new Date().toISOString(),
     timestamp: Date.now(),
     filename: req.file.originalname,
@@ -479,6 +553,7 @@ app.post('/api/predict', authenticateToken, upload.single('image'), async (req: 
     fruit_count: detections.length,
     fruits: detections,
     detections,
+    results: detections,
     mode: isDemo ? 'demo' : 'production',
     is_demo: isDemo,
     demo_notice: isDemo
@@ -513,13 +588,17 @@ app.post('/api/predict', authenticateToken, upload.single('image'), async (req: 
   return res.status(200).json({
     success: true,
     mode: isDemo ? 'demo' : 'production',
-    message: isDemo ? 'Review demo analysis completed' : `Analyzed ${detections.length} fruits successfully.`,
-    data: record,
+    message: isDemo ? 'Review demo analysis completed successfully.' : `Analyzed ${detections.length} fruits successfully.`,
+    data: {
+      ...record,
+      results: detections,
+      fruits: detections,
+    },
   });
 });
 
 // 8. GET /api/predictions
-app.get('/api/predictions', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.get('/api/predictions', optionalOrDemoAuth, async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
   const db = await getMongoDb();
 
@@ -542,7 +621,7 @@ app.get('/api/predictions', authenticateToken, async (req: AuthRequest, res: Res
 });
 
 // 9. GET /api/predictions/:prediction_id
-app.get('/api/predictions/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.get('/api/predictions/:id', optionalOrDemoAuth, async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
   const predId = req.params.id;
   const db = await getMongoDb();
@@ -562,7 +641,7 @@ app.get('/api/predictions/:id', authenticateToken, async (req: AuthRequest, res:
 });
 
 // 10. DELETE /api/predictions/:prediction_id
-app.delete('/api/predictions/:id', authenticateToken, async (req: AuthRequest, res: Response) => {
+app.delete('/api/predictions/:id', optionalOrDemoAuth, async (req: AuthRequest, res: Response) => {
   const userId = req.user?.id;
   const predId = req.params.id;
   const db = await getMongoDb();

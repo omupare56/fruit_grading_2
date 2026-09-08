@@ -135,15 +135,31 @@ export const FinalReportView: React.FC<FinalReportViewProps> = ({
         </div>
       </div>
 
-      {/* Requirement 7: Executive Summary Card */}
+      {/* Requirement 11: REVIEW DEMO MODE Banner */}
+      <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg">
+        <div className="flex items-center gap-3">
+          <span className="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-mono font-bold text-xs border border-amber-500/40 shrink-0">
+            REVIEW DEMO MODE
+          </span>
+          <p className="text-amber-200/90 leading-relaxed font-medium">
+            Sample results are displayed for project workflow demonstration. Actual AI predictions require trained YOLO and EfficientNet V2 model weights.
+          </p>
+        </div>
+        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shrink-0 font-semibold text-[11px]">
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          <span>Analysis Complete</span>
+        </div>
+      </div>
+
+      {/* Requirement 11: Metric Cards */}
       <div className="p-6 rounded-2xl bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 border border-slate-800 space-y-4">
         <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
           <h3 className="text-sm font-bold text-white flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-            <span>Executive Batch Assessment Summary</span>
+            <span>Analysis Summary & Quality Gate</span>
           </h3>
           <span className="text-xs text-amber-400 font-mono font-semibold">
-            Review Demo Mode Active
+            REVIEW DEMO ACTIVE
           </span>
         </div>
 
@@ -157,6 +173,17 @@ export const FinalReportView: React.FC<FinalReportViewProps> = ({
             <p className="text-[11px] text-slate-400">YOLO Localization instances</p>
           </div>
 
+          {/* Overall Assessment */}
+          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
+            <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block">
+              Overall Assessment
+            </span>
+            <span className="text-sm font-bold text-teal-300 block leading-snug">
+              {batchRecommendation}
+            </span>
+            <p className="text-[11px] text-slate-400">Automated quality decision</p>
+          </div>
+
           {/* Quality Breakdown */}
           <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
             <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block">
@@ -167,18 +194,17 @@ export const FinalReportView: React.FC<FinalReportViewProps> = ({
             </span>
             <p className="text-[11px] text-slate-400">EfficientNet V2 classification</p>
           </div>
-
-          {/* Batch Action Recommendation */}
-          <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-1">
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 block">
-              Batch Action Recommendation
-            </span>
-            <span className="text-xs font-bold text-teal-300 block leading-snug">
-              {batchRecommendation}
-            </span>
-            <p className="text-[11px] text-slate-400">Automated quality gate</p>
-          </div>
         </div>
+      </div>
+
+      {/* Individual Results Section Header */}
+      <div className="border-t border-slate-800 pt-6">
+        <h3 className="text-xl font-extrabold text-white tracking-tight mb-4 flex items-center gap-2">
+          <span>Individual Results</span>
+          <span className="text-xs font-mono font-normal px-2.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+            {totalFruits} detected fruits
+          </span>
+        </h3>
       </div>
 
       {/* Stage 1: Interactive YOLO Detection Viewer */}

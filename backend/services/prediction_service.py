@@ -9,7 +9,10 @@ from backend.utils.image_utils import extract_fruit_crop
 from backend.database.connection import get_collection
 
 def is_demo_mode_enabled() -> bool:
-    return os.environ.get("DEMO_MODE", "true").lower() in ("true", "1", "yes")
+    val = os.environ.get("REVIEW_DEMO_MODE")
+    if val is None:
+        val = os.environ.get("DEMO_MODE", "true")
+    return str(val).lower() in ("true", "1", "yes")
 
 def get_recommendation_for_class(quality_class: str) -> str:
     try:
