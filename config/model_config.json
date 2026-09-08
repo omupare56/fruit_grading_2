@@ -1,0 +1,42 @@
+{
+  "system": {
+    "name": "Intelligent Vision-Based Fruit Quality Assessment System Using Deep Learning",
+    "brand": "FruitVision DL",
+    "version": "2.4.0",
+    "environment": "production"
+  },
+  "yolo": {
+    "architecture": "YOLOv8-FruitDetection",
+    "model_path": "models/yolo/best.pt",
+    "input_size": [640, 640],
+    "confidence_threshold": 0.45,
+    "iou_threshold": 0.45,
+    "enabled": true
+  },
+  "efficientnet": {
+    "architecture": "EfficientNetV2-S",
+    "model_path": "models/efficientnet/efficientnet_v2.pth",
+    "input_size": [224, 224],
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225],
+    "enabled": true
+  },
+  "optional_modules": {
+    "defect_detection": {
+      "configured": false,
+      "message": "Defect detection model is not configured."
+    },
+    "shelf_life_prediction": {
+      "configured": false,
+      "message": "Shelf-life prediction is not configured."
+    },
+    "market_grade": {
+      "configured": false,
+      "message": "Market grade prediction is not configured."
+    }
+  },
+  "upload": {
+    "max_file_size_mb": 15,
+    "allowed_extensions": ["png", "jpg", "jpeg", "webp"]
+  }
+}

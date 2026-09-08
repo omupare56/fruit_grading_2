@@ -1,0 +1,26 @@
+{
+  "quality_classes": [
+    "Excellent",
+    "Good",
+    "Fair",
+    "Poor"
+  ],
+  "supported_fruits": [
+    "Apple",
+    "Banana",
+    "Orange",
+    "Mango",
+    "Kiwi",
+    "Pear",
+    "Dragon Fruit",
+    "Tomato",
+    "Guava",
+    "Other"
+  ],
+  "recommendations": {
+    "Excellent": "Model classified this fruit as excellent quality. High visual freshness, optimal coloration, and no detectable surface lesions.",
+    "Good": "Model classified this fruit as good quality. Suitable for normal fresh retail display and standard consumption.",
+    "Fair": "Model classified this fruit as fair quality. Minor cosmetic discoloration or softening observed. Recommended for immediate consumption or processing (juicing/puree).",
+    "Poor": "Model classified this fruit as poor quality. Substantial surface degradation, severe bruising, or potential necrotic blemishes detected. Unsuitable for commercial fresh distribution."
+  }
+}

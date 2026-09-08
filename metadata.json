@@ -1,0 +1,6 @@
+{
+  "name": "Intelligent Vision-Based Fruit Quality Assessment System Using Deep Learning",
+  "description": "Two-stage deep learning pipeline combining YOLO fruit detection, individual fruit cropping, and EfficientNet V2 quality assessment with MongoDB Atlas.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
