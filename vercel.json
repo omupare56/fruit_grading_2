@@ -2,6 +2,16 @@
   "version": 2,
   "buildCommand": "npm run build:frontend",
   "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/server.ts"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
   "functions": {
     "server.ts": {
       "includeFiles": [
@@ -9,21 +19,5 @@
         "models/**"
       ]
     }
-  },
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/server.ts"
-    },
-    {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
-    }
-  ],
-  "env": {
-    "NODE_ENV": "production"
   }
 }
