@@ -6,3 +6,21 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Model weights (too large for git — use scripts/download_models.py)
+models/yolo/best.pt
+models/efficientnet/*.pth
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ultralytics model cache (auto-downloaded)
+*.pt
+!models/yolo/best.pt
+
+# Jupyter
+.ipynb_checkpoints/

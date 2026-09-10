@@ -11,8 +11,12 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 const app = express();
-const PORT = 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'fruitvision_dl_super_secret_jwt_key_2026_change_in_production';
+const PORT = parseInt(process.env.PORT || '3000', 10);
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.warn('[Security Warning] JWT_SECRET environment variable is not set. Using default — CHANGE THIS IN PRODUCTION.');
+}
+const JWT_SECRET_EFFECTIVE = JWT_SECRET || 'fruitvision_dl_super_secret_jwt_key_2026_change_in_production';
 
 // Body parsers
 app.use(express.json({ limit: '25mb' }));
@@ -88,8 +92,9 @@ interface AuthRequest extends Request {
 }
 
 function isDemoMode(): boolean {
-  const envVal = process.env.REVIEW_DEMO_MODE || process.env.DEMO_MODE || 'true';
-  return envVal.toLowerCase() !== 'false' && envVal.toLowerCase() !== '0';
+  // DEMO_MODE is explicitly opt-in. Defaults to FALSE for production safety.
+  const envVal = process.env.REVIEW_DEMO_MODE || process.env.DEMO_MODE || 'false';
+  return envVal.toLowerCase() === 'true' || envVal === '1';
 }
 
 function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) {
@@ -110,7 +115,7 @@ function authenticateToken(req: AuthRequest, res: Response, next: NextFunction) 
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const decoded = jwt.verify(token, JWT_SECRET_EFFECTIVE) as any;
     req.user = {
       id: decoded.sub || decoded.id,
       email: decoded.email,
@@ -139,7 +144,7 @@ function authenticatePrediction(req: AuthRequest, res: Response, next: NextFunct
 
   if (token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET_EFFECTIVE) as any;
       req.user = {
         id: decoded.sub || decoded.id,
         email: decoded.email,
@@ -149,22 +154,8 @@ function authenticatePrediction(req: AuthRequest, res: Response, next: NextFunct
       };
       return next();
     } catch {
-      if (!isDemoMode()) {
-        return apiError(res, 'INVALID_TOKEN', 'Session has expired or is invalid. Please log in again.', 401);
-      }
+      return apiError(res, 'INVALID_TOKEN', 'Session has expired or is invalid. Please log in again.', 401);
     }
-  }
-
-  // If no token or token was invalid in demo mode:
-  if (isDemoMode()) {
-    req.user = {
-      id: 'review-demo-user',
-      email: 'demo-reviewer@fruitvision.edu',
-      name: 'Review Demo User',
-      institution: 'B.Tech Academic Review',
-      role: 'Reviewer',
-    };
-    return next();
   }
 
   return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
@@ -185,7 +176,7 @@ function optionalOrDemoAuth(req: AuthRequest, res: Response, next: NextFunction)
 
   if (token) {
     try {
-      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const decoded = jwt.verify(token, JWT_SECRET_EFFECTIVE) as any;
       req.user = {
         id: decoded.sub || decoded.id,
         email: decoded.email,
@@ -195,19 +186,8 @@ function optionalOrDemoAuth(req: AuthRequest, res: Response, next: NextFunction)
       };
       return next();
     } catch {
-      // Ignore invalid token if demo mode is enabled
+      // Token invalid — require auth
     }
-  }
-
-  if (isDemoMode()) {
-    req.user = {
-      id: 'review-demo-user',
-      email: 'demo-reviewer@fruitvision.edu',
-      name: 'Review Demo User',
-      institution: 'B.Tech Academic Review',
-      role: 'Reviewer',
-    };
-    return next();
   }
 
   return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
@@ -309,7 +289,7 @@ app.post('/api/auth/signup', async (req: Request, res: Response) => {
 
   const token = jwt.sign(
     { sub: userId, email: normalizedEmail, name: name.trim() },
-    JWT_SECRET,
+    JWT_SECRET_EFFECTIVE,
     { expiresIn: '7d' }
   );
 
@@ -344,25 +324,6 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
   }
 
   if (!userRecord) {
-    // For local dev convenience if no database configured
-    if (!db && !process.env.MONGODB_URI) {
-      const demoId = `demo_user_${Date.now()}`;
-      const token = jwt.sign(
-        { sub: demoId, email: normalizedEmail, name: 'Researcher Demo' },
-        JWT_SECRET,
-        { expiresIn: '7d' }
-      );
-      return apiSuccess(res, {
-        token,
-        user: {
-          id: demoId,
-          name: 'Researcher Demo',
-          email: normalizedEmail,
-          institution: 'B.Tech IT Department',
-          role: 'Researcher',
-        },
-      }, 'Logged in (development session mode).');
-    }
     return apiError(res, 'INVALID_CREDENTIALS', 'Invalid email or password.', 401);
   }
 
@@ -373,7 +334,7 @@ app.post('/api/auth/login', async (req: Request, res: Response) => {
 
   const token = jwt.sign(
     { sub: userRecord.id, email: userRecord.email, name: userRecord.name },
-    JWT_SECRET,
+    JWT_SECRET_EFFECTIVE,
     { expiresIn: '7d' }
   );
 
@@ -416,185 +377,120 @@ app.post('/api/upload', upload.single('image'), (req: Request, res: Response) =>
   }, 'Image uploaded and validated successfully.');
 });
 
-// 7. POST /api/predict
+// 7. POST /api/predict — proxies to Python ML microservice
 app.post('/api/predict', authenticatePrediction, upload.single('image'), async (req: AuthRequest, res: Response) => {
   if (!req.file) {
     return apiError(res, 'MISSING_FILE', 'No image file provided for analysis.', 400);
   }
 
-  const yoloReady = getYoloStatus() === 'configured';
-  const effReady = getEfficientNetStatus() === 'configured';
-  const isBenchmark = req.body?.is_benchmark_test === 'true';
+  const pythonMlUrl = (process.env.PYTHON_ML_URL || '').replace(/\/+$/, '');
 
-  let benchmarkData: any[] = [];
-  if (req.body?.benchmark_data) {
-    try {
-      benchmarkData = JSON.parse(req.body.benchmark_data);
-    } catch {
-      benchmarkData = [];
-    }
+  if (!pythonMlUrl) {
+    return apiError(
+      res,
+      'ML_BACKEND_NOT_CONFIGURED',
+      'The ML inference backend is not configured. Set the PYTHON_ML_URL environment variable to point to your deployed Python Flask ML service (e.g., https://fruitvision-ml.railway.app). See README.md for deployment instructions.',
+      503
+    );
   }
 
-  // Model Honesty check: if weights not configured and not a verified benchmark test
-  let isDemo = false;
-  if (!yoloReady && !isBenchmark) {
-    if (!isDemoMode()) {
-      return apiError(
-        res,
-        'MODEL_WEIGHTS_NOT_CONFIGURED',
-        'AI model weights are not configured. Upload trained YOLO weights (models/yolo/best.pt) and EfficientNet V2 weights (models/efficientnet/efficientnet_v2.pth) to perform neural network inference.',
-        422
-      );
+  try {
+    // Forward image + metadata to Python ML microservice
+    const mlFormData = new FormData();
+    const imageBlob = new Blob([req.file.buffer], { type: req.file.mimetype });
+    mlFormData.append('image', imageBlob, req.file.originalname || 'image.jpg');
+    mlFormData.append('user_id', req.user?.id || 'anonymous');
+    mlFormData.append('filename', req.file.originalname || 'image.jpg');
+
+    if (req.body?.is_benchmark_test === 'true') {
+      mlFormData.append('is_benchmark_test', 'true');
+      if (req.body?.benchmark_data) {
+        mlFormData.append('benchmark_data', req.body.benchmark_data);
+      }
     }
-    isDemo = true;
-  }
 
-  const predictionId = `pred_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-  const base64Img = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
-
-  const detections: any[] = [];
-
-  if (isBenchmark && benchmarkData.length > 0) {
-    // Process benchmark ground-truth test case
-    benchmarkData.forEach((item, idx) => {
-      detections.push({
-        fruit_id: idx + 1,
-        fruit_type: item.fruit_type || 'Fruit',
-        detection_confidence: item.detection_confidence || 0.94,
-        bounding_box: item.bounding_box || { x1: 10, y1: 10, x2: 40, y2: 40 },
-        crop_image_url: item.crop_image_url || base64Img,
-        quality: {
-          class: item.quality_class || 'Good',
-          confidence: item.quality_confidence || 0.88,
-          probabilities: item.probabilities || {
-            Excellent: item.quality_class === 'Excellent' ? 0.9 : 0.05,
-            Good: item.quality_class === 'Good' ? 0.88 : 0.08,
-            Fair: item.quality_class === 'Fair' ? 0.75 : 0.04,
-            Poor: item.quality_class === 'Poor' ? 0.82 : 0.03,
-          },
-        },
-        recommendation: `Model classified this fruit as ${String(item.quality_class || 'Good').toLowerCase()} quality.`,
-        is_benchmark_ground_truth: true,
-      });
+    const mlResponse = await fetch(`${pythonMlUrl}/ml/predict`, {
+      method: 'POST',
+      headers: {
+        'X-ML-Secret': process.env.ML_INTERNAL_SECRET || 'fruitvision-ml-internal-secret',
+      },
+      body: mlFormData,
+      signal: AbortSignal.timeout(60000), // 60s timeout for ML inference
     });
-  } else if (isDemo) {
-    // REVIEW DEMO MODE sample outputs for B.Tech project review demonstration
-    const demoItems = [
-      {
-        fruit_type: 'Apple',
-        detection_status: 'Detected',
-        quality_stage: 'Ready for Analysis',
-        quality_class: 'Good',
-        quality_status: 'Suitable for consumption',
-        confidence_label: 'Demo Value',
-        reason: 'Surface appears suitable for demonstration',
-        recommendation: 'Suitable for consumption',
-        box: { x: 14, y: 18, width: 32, height: 55, x1: 14, y1: 18, x2: 46, y2: 73 },
-      },
-      {
-        fruit_type: 'Banana',
-        detection_status: 'Detected',
-        quality_stage: 'Ready for Analysis',
-        quality_class: 'Moderate',
-        quality_status: 'Consume soon',
-        confidence_label: 'Demo Value',
-        reason: 'Demonstration quality category',
-        recommendation: 'Consume soon',
-        box: { x: 40, y: 12, width: 30, height: 68, x1: 40, y1: 12, x2: 70, y2: 80 },
-      },
-      {
-        fruit_type: 'Orange',
-        detection_status: 'Detected',
-        quality_stage: 'Ready for Analysis',
-        quality_class: 'Good',
-        quality_status: 'Suitable for consumption',
-        confidence_label: 'Demo Value',
-        reason: 'Demonstration quality category',
-        recommendation: 'Suitable for consumption',
-        box: { x: 66, y: 25, width: 26, height: 52, x1: 66, y1: 25, x2: 92, y2: 77 },
-      },
-    ];
 
-    demoItems.forEach((item, idx) => {
-      detections.push({
-        fruit_id: idx + 1,
-        fruit_type: item.fruit_type,
-        detection_status: item.detection_status,
-        quality_stage: item.quality_stage,
-        detection_confidence_label: 'Demo Value',
-        detection_confidence: null,
-        bounding_box: item.box,
-        crop_image_url: base64Img,
-        quality: {
-          class: item.quality_class,
-          status: item.quality_status,
-          confidence_label: 'Demo Value',
-          confidence: null,
-          reason: item.reason,
-          recommendation: item.recommendation,
-          probabilities: {
-            [item.quality_class]: 'Demo Value',
-          },
-        },
-        recommendation: item.recommendation,
-        is_demo: true,
-      });
-    });
-  }
-
-  const record = {
-    prediction_id: predictionId,
-    user_id: req.user?.id || (isDemo ? 'review-demo-user' : 'anonymous'),
-    created_at: new Date().toISOString(),
-    timestamp: Date.now(),
-    filename: req.file.originalname,
-    image_url: base64Img,
-    preview_url: base64Img,
-    fruit_count: detections.length,
-    fruits: detections,
-    detections,
-    results: detections,
-    mode: isDemo ? 'demo' : 'production',
-    is_demo: isDemo,
-    demo_notice: isDemo
-      ? 'Demo mode is active because trained YOLO and EfficientNet V2 model weights are not configured. Results shown are sample outputs for workflow demonstration.'
-      : null,
-    model_information: {
-      yolo_architecture: 'YOLOv8-FruitDetection',
-      yolo_status: getYoloStatus(),
-      efficientnet_architecture: 'EfficientNetV2-S',
-      efficientnet_status: getEfficientNetStatus(),
-      demo_mode: isDemoMode(),
-      optional_modules: {
-        defect_detection: 'Defect detection model is not configured.',
-        shelf_life_prediction: 'Shelf-life prediction is not configured.',
-        market_grade: 'Market grade prediction is not configured.',
-      },
-    },
-  };
-
-  // Save to MongoDB Atlas or In-Memory
-  const db = await getMongoDb();
-  if (db) {
-    try {
-      await db.collection('predictions').insertOne({ ...record });
-    } catch (e) {
-      console.error('[MongoDB Error]', e);
+    const contentType = mlResponse.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      const text = await mlResponse.text();
+      console.error('[ML Service Error] Non-JSON response:', text.substring(0, 300));
+      return apiError(res, 'ML_BACKEND_ERROR', 'ML service returned an invalid response. Check PYTHON_ML_URL is correct and the service is healthy.', 502);
     }
-  } else {
-    inMemoryPredictions.unshift(record);
-  }
 
-  return res.status(200).json({
-    success: true,
-    mode: isDemo ? 'demo' : 'production',
-    message: isDemo ? 'Review demo analysis completed successfully.' : `Analyzed ${detections.length} fruits successfully.`,
-    data: {
-      ...record,
-      results: detections,
+    const mlResult: any = await mlResponse.json();
+
+    if (!mlResponse.ok || !mlResult.success) {
+      return res.status(mlResponse.status || 422).json({
+        success: false,
+        error: {
+          code: mlResult.error?.code || 'ML_INFERENCE_ERROR',
+          message: mlResult.error?.message || mlResult.message || `ML service error (status ${mlResponse.status})`,
+        },
+      });
+    }
+
+    const mlData = mlResult.data;
+    const predictionId = `pred_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const base64Img = `data:${req.file.mimetype};base64,${req.file.buffer.toString('base64')}`;
+
+    const detections = mlData.detections || [];
+
+    const record = {
+      prediction_id: predictionId,
+      user_id: req.user?.id || 'anonymous',
+      created_at: new Date().toISOString(),
+      timestamp: Date.now(),
+      filename: req.file.originalname || 'image.jpg',
+      image_url: base64Img,
+      preview_url: base64Img,
+      fruit_count: mlData.fruit_count || detections.length,
+      detections,
       fruits: detections,
-    },
-  });
+      results: detections,
+      mode: 'production',
+      is_demo: false,
+      image_metadata: mlData.image_metadata || {},
+      model_information: mlData.model_information || {},
+    };
+
+    // Persist to MongoDB Atlas or in-memory
+    const db = await getMongoDb();
+    if (db) {
+      try {
+        await db.collection('predictions').insertOne({ ...record });
+      } catch (e) {
+        console.error('[MongoDB Save Error]', e);
+      }
+    } else {
+      inMemoryPredictions.unshift(record);
+    }
+
+    return res.status(200).json({
+      success: true,
+      mode: 'production',
+      message: `Analyzed ${record.fruit_count} fruits successfully.`,
+      data: record,
+    });
+  } catch (err: any) {
+    if (err.name === 'TimeoutError' || err.name === 'AbortError') {
+      return apiError(res, 'ML_TIMEOUT', 'ML inference timed out (>60s). The model may still be loading — try again in a moment.', 504);
+    }
+    console.error('[ML Proxy Error]', err);
+    return apiError(
+      res,
+      'ML_BACKEND_UNREACHABLE',
+      `Could not reach ML inference backend at ${process.env.PYTHON_ML_URL}: ${err.message}`,
+      502
+    );
+  }
 });
 
 // 8. GET /api/predictions
@@ -815,7 +711,11 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
+    const mlUrl = process.env.PYTHON_ML_URL || 'NOT SET — predictions will return 503';
     console.log(`[FruitVision DL Server] Running on http://0.0.0.0:${PORT}`);
+    console.log(`[FruitVision DL Server] PYTHON_ML_URL: ${mlUrl}`);
+    console.log(`[FruitVision DL Server] MONGODB_URI: ${process.env.MONGODB_URI ? 'configured' : 'NOT SET — using in-memory fallback'}`);
+    console.log(`[FruitVision DL Server] DEMO_MODE: ${isDemoMode()}`);
   });
 }
 
