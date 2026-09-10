@@ -1,27 +1,26 @@
 {
   "version": 2,
-  "buildCommand": "npm run build",
-  "builds": [
-    {
-      "src": "server.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": ["dist/**", "config/**", "models/**"]
-      }
+  "buildCommand": "npm run build:frontend",
+  "outputDirectory": "dist",
+  "functions": {
+    "server.ts": {
+      "includeFiles": [
+        "config/**",
+        "models/**"
+      ]
     }
-  ],
+  },
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "server.ts"
+      "dest": "/server.ts"
     },
     {
-      "src": "/assets/(.*)",
-      "dest": "server.ts"
+      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
-      "dest": "server.ts"
+      "dest": "/index.html"
     }
   ],
   "env": {
