@@ -1,7 +1,6 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { createServer as createViteServer } from 'vite';
 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -709,7 +708,8 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 // VITE MIDDLEWARE / STATIC ASSETS
 // ==========================================
 async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -723,13 +723,19 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    const mlUrl = process.env.PYTHON_ML_URL || 'NOT SET — predictions will return 503';
-    console.log(`[FruitVision DL Server] Running on http://0.0.0.0:${PORT}`);
-    console.log(`[FruitVision DL Server] PYTHON_ML_URL: ${mlUrl}`);
-    console.log(`[FruitVision DL Server] MONGODB_URI: ${process.env.MONGODB_URI ? 'configured' : 'NOT SET — using in-memory fallback'}`);
-    console.log(`[FruitVision DL Server] DEMO_MODE: ${isDemoMode()}`);
-  });
+  if (!process.env.VERCEL) {
+    app.listen(PORT, '0.0.0.0', () => {
+      const mlUrl = process.env.PYTHON_ML_URL || 'NOT SET — predictions will return 503';
+      console.log(`[FruitVision DL Server] Running on http://0.0.0.0:${PORT}`);
+      console.log(`[FruitVision DL Server] PYTHON_ML_URL: ${mlUrl}`);
+      console.log(`[FruitVision DL Server] MONGODB_URI: ${process.env.MONGODB_URI ? 'configured' : 'NOT SET — using in-memory fallback'}`);
+      console.log(`[FruitVision DL Server] DEMO_MODE: ${isDemoMode()}`);
+    });
+  }
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;
