@@ -705,18 +705,12 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
 });
 
 // ==========================================
-// VITE MIDDLEWARE / STATIC ASSETS
+// LOCAL PRODUCTION SERVER (ignored by Vercel)
 // ==========================================
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    const viteModuleName = 'vite';
-    const { createServer: createViteServer } = await import(viteModuleName);
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
+if (!process.env.VERCEL && process.env.NODE_ENV !== 'test') {
+  // Only serve static files in local production mode (npm start)
+  // In development, dev-server.ts handles Vite middleware.
+  if (process.env.NODE_ENV === 'production') {
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*', (req, res) => {
@@ -724,19 +718,12 @@ async function startServer() {
     });
   }
 
-  if (!process.env.VERCEL) {
-    app.listen(PORT, '0.0.0.0', () => {
-      const mlUrl = process.env.PYTHON_ML_URL || 'NOT SET — predictions will return 503';
-      console.log(`[FruitVision DL Server] Running on http://0.0.0.0:${PORT}`);
-      console.log(`[FruitVision DL Server] PYTHON_ML_URL: ${mlUrl}`);
-      console.log(`[FruitVision DL Server] MONGODB_URI: ${process.env.MONGODB_URI ? 'configured' : 'NOT SET — using in-memory fallback'}`);
-      console.log(`[FruitVision DL Server] DEMO_MODE: ${isDemoMode()}`);
-    });
-  }
-}
-
-if (!process.env.VERCEL) {
-  startServer();
+  app.listen(PORT, '0.0.0.0', () => {
+    const mlUrl = process.env.PYTHON_ML_URL || 'NOT SET — predictions will return 503';
+    console.log(`[FruitVision DL Server] Running on http://0.0.0.0:${PORT}`);
+    console.log(`[FruitVision DL Server] PYTHON_ML_URL: ${mlUrl}`);
+    console.log(`[FruitVision DL Server] MONGODB_URI: ${process.env.MONGODB_URI ? 'configured' : 'NOT SET — using in-memory fallback'}`);
+  });
 }
 
 export default app;
