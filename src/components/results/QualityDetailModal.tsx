@@ -79,7 +79,7 @@ export const QualityDetailModal: React.FC<QualityDetailModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-white tracking-tight">
-                Quality Factor Inspection — Fruit #{fruit.fruitNumber} ({fruit.fruitType})
+                Quality Factor Inspection — Fruit #{fruit.fruitNumber} ({fruit.fruitType || 'Unknown/Low Confidence'})
               </h3>
               <p className="text-xs text-slate-400">
                 Local Visual Quality Estimate • Client-Side Heuristic

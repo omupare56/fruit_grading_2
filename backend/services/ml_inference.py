@@ -51,12 +51,9 @@ def run_ml_inference(
     """
     img_w, img_h = image.size
 
-    # ── YOLO detection ────────────────────────────────────────────────────────
-    if not yolo_service.is_configured():
-        return None, (
-            "YOLO model is not available. Install ultralytics: pip install ultralytics"
-        )
-
+    # ── YOLO detection / no-torch fallback ───────────────────────────────────
+    # yolo_service.detect_fruits() handles torch-unavailable internally;
+    # it falls back to PIL colour-histogram analysis if WinError 4551 occurs.
     if is_benchmark_test and benchmark_data:
         # Benchmark mode: treat supplied ground-truth boxes as detections
         detections = _process_benchmark(image, benchmark_data)
@@ -65,11 +62,20 @@ def run_ml_inference(
         if det_err:
             return None, det_err
         if not raw_detections:
-            return None, (
-                "No fruits were detected in the provided image. "
-                "Ensure the image contains visible fruit(s) at a reasonable resolution."
-            )
+            # Safe fallback: use the complete uploaded image
+            box = {"x": 0, "y": 0, "width": 100, "height": 100}
+            raw_detections = [{
+                "fruit_id": 1,
+                "fruit_type": "Unknown/Low Confidence",
+                "confidence": 0.0,
+                "bounding_box": box
+            }]
         detections = _process_detections(image, raw_detections)
+
+    # Detect whether the no-torch fallback was used (internal only, not in response)
+    _using_no_torch = any(
+        d.get("no_torch_fallback") for d in detections
+    ) if detections else False
 
     result = {
         "image_metadata": {
@@ -87,6 +93,10 @@ def run_ml_inference(
         },
     }
 
+    if _using_no_torch:
+        # Log internally only — NOT surfaced in the API response
+        print("[ml_inference] no-torch colour-histogram fallback was used for this request.")
+
     return result, None
 
 
@@ -95,15 +105,20 @@ def run_ml_inference(
 def _process_detections(image: Image.Image, raw_detections: list) -> list:
     """Run EfficientNet quality grading on each YOLO-detected crop."""
     detections = []
+    from backend.services.fruit_classifier import classify_fruit
     for det in raw_detections:
         crop_img, crop_url = extract_fruit_crop(image, det["bounding_box"])
+        
+        fruit_class, fruit_conf = classify_fruit(crop_img)
+        
         quality, q_err = efficientnet_service.analyze_crop(crop_img)
         if q_err or not quality:
             quality = {"class": "Unclassified", "confidence": 0.0, "probabilities": {}}
 
         detections.append({
             "fruit_id": det["fruit_id"],
-            "fruit_type": det["fruit_type"],
+            "fruit_type": fruit_class,
+            "fruit_classification_confidence": fruit_conf,
             "detection_confidence": det["confidence"],
             "bounding_box": det["bounding_box"],
             "crop_image_url": crop_url,

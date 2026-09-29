@@ -74,8 +74,9 @@ class EfficientNetV2QualityModel:
             import torch  # noqa: F401
             import torchvision  # noqa: F401
             return "configured_pretrained_analysis"
-        except ImportError:
-            return "not_configured"
+        except (ImportError, OSError):
+            # OSError covers WinError 4551 (Windows Smart App Control / shm.dll)
+            return "local_fallback_no_torch"
 
     def analyze_crop(self, crop_image: Image.Image):
         """

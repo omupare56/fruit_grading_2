@@ -24,3 +24,9 @@ venv/
 
 # Jupyter
 .ipynb_checkpoints/
+
+# Dataset
+dataset/
+data/
+C:/FruitVision/
+

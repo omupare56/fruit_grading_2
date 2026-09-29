@@ -170,7 +170,7 @@ export function downloadHtmlReport(result: AnalysisResult): void {
           (f) => `
         <tr>
           <td><strong>#${f.fruitNumber}</strong></td>
-          <td>${f.fruitType}</td>
+          <td>${(f as any).fruit_type || f.fruitType || 'Unknown/Low Confidence'}</td>
           <td>${f.isUserAssisted ? 'User-Assisted Demo' : 'Benchmark Demo'}</td>
           <td>
             <span class="badge badge-${f.qualityCategory.toLowerCase()}">${f.qualityCategory}</span>

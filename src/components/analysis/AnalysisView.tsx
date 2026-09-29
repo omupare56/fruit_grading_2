@@ -70,6 +70,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
   const [activeStage, setActiveStage] = useState<'idle' | 'step1' | 'step2' | 'complete'>('idle');
   const [activeSubStep, setActiveSubStep] = useState<string>('');
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const [pipelineErrorCode, setPipelineErrorCode] = useState<string | null>(null);
 
   // Drag & drop state
   const [isDragging, setIsDragging] = useState(false);
@@ -85,6 +86,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
   const handleFileSelect = (file: File) => {
     setFileError(null);
     setPipelineError(null);
+    setPipelineErrorCode(null);
 
     if (!SUPPORTED_FORMATS.includes(file.type)) {
       setFileError('Unsupported image format. Allowed formats: PNG, JPG, JPEG, WEBP.');
@@ -127,6 +129,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
     setPreviewUrl(null);
     setFileError(null);
     setPipelineError(null);
+    setPipelineErrorCode(null);
     setIsProcessing(false);
     setActiveStage('idle');
     setActiveSubStep('');
@@ -194,7 +197,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
         fileToUpload = new File([blob], `${selectedBenchmark.id}.jpg`, { type: 'image/jpeg' });
 
         benchmarkData = selectedBenchmark.fruits.map((f) => ({
-          fruit_type: f.fruitType,
+          fruit_type: f.fruitType || 'Unknown/Low Confidence',
           detection_confidence: 0.94,
           bounding_box: f.boundingBox,
           quality_class: f.qualityCategory,
@@ -271,6 +274,7 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
     } catch (err: any) {
       const msg = err.message || 'Analysis could not be completed.';
       setPipelineError(msg);
+      setPipelineErrorCode(err.code || (err.status ? `HTTP_${err.status}` : null));
       setActiveStage('idle');
       setActiveSubStep('');
     } finally {
@@ -703,14 +707,32 @@ export const AnalysisView: React.FC<AnalysisViewProps> = ({
 
       {/* Pipeline Error Display */}
       {pipelineError && (
-        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-start gap-3">
-          <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <span className="font-bold block text-sm text-rose-200">
-              Pipeline Execution Error
-            </span>
-            <p className="leading-relaxed text-rose-300/90">{pipelineError}</p>
+        <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <XCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <span className="font-bold block text-sm text-rose-200">
+                {pipelineErrorCode === 'AUTHENTICATION_REQUIRED' || pipelineErrorCode === 'INVALID_TOKEN' || pipelineErrorCode === 'HTTP_401'
+                  ? 'Authentication Required'
+                  : pipelineErrorCode === 'ML_BACKEND_UNREACHABLE' || pipelineErrorCode === 'ML_BACKEND_NOT_CONFIGURED' || pipelineErrorCode === 'ML_BACKEND_ERROR'
+                    ? 'ML Service Offline'
+                    : 'Pipeline Execution Error'}
+              </span>
+              <p className="leading-relaxed text-sm text-rose-300/90">
+                {pipelineErrorCode === 'ML_BACKEND_UNREACHABLE' || pipelineErrorCode === 'ML_BACKEND_NOT_CONFIGURED' || pipelineErrorCode === 'ML_BACKEND_ERROR'
+                  ? 'ML service offline — start the Python service'
+                  : pipelineError}
+              </p>
+            </div>
           </div>
+          {(pipelineErrorCode === 'AUTHENTICATION_REQUIRED' || pipelineErrorCode === 'INVALID_TOKEN' || pipelineErrorCode === 'HTTP_401') && (
+            <button
+              onClick={() => window.location.href = '/login'}
+              className="whitespace-nowrap px-4 py-2 bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 rounded-lg text-sm font-semibold transition-colors border border-rose-500/30"
+            >
+              Go to Login
+            </button>
+          )}
         </div>
       )}
     </div>

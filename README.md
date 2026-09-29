@@ -41,80 +41,76 @@ A full-stack deep learning web application for fruit detection and quality gradi
 
 ---
 
-## A. Local Setup
+## A. Local Setup (Windows)
 
-### 1. Clone & Install
+### 1. Prerequisites
+- **Windows 10/11**
+- **Git** (to clone the repository)
+- **Node.js**: Download and install the latest LTS version (≥ 18.x) from [nodejs.org](https://nodejs.org/).
+- **Python**: Download and install Python (≥ 3.11) from [python.org](https://www.python.org/downloads/). Ensure you check **"Add Python to PATH"** during installation.
 
-```bash
+### 2. Clone the Repository
+Open PowerShell or Command Prompt and run:
+```powershell
 git clone https://github.com/your-username/fruit_grading_2.git
 cd fruit_grading_2
+```
 
-# Node.js dependencies
+### 3. Node.js Setup
+Install the frontend and backend Node.js dependencies:
+```powershell
 npm install
+```
 
-# Python dependencies (ML microservice)
+### 4. Python Setup (ML Microservice)
+It is recommended to use a virtual environment:
+```powershell
+python -m venv venv
+.\venv\Scripts\activate
+```
+Install the required Python packages:
+```powershell
 pip install -r requirements.txt
 ```
 
-### 2. Environment Variables
-
-```bash
-cp .env.example .env
+### 5. Environment Variables
+Copy the example environment file:
+```powershell
+Copy-Item .env.example .env
 ```
+Open `.env` in a text editor (like VS Code or Notepad) and ensure the following are set:
+- `MONGODB_URI`: (Required for auth/history) Your MongoDB Atlas connection string.
+- `JWT_SECRET`: Any random string (e.g. `my-local-secret-123`).
+- `PYTHON_ML_URL`: `http://localhost:5000` (Local URL of the Flask service).
+- `ML_INTERNAL_SECRET`: A matching random string to authenticate Node to Flask.
+- `PORT`: `3000` (Node server port).
 
-Edit `.env` and set:
+### 6. Run the Application
 
-| Variable | Required | Description |
-|---|---|---|
-| `MONGODB_URI` | ✅ | MongoDB Atlas connection string |
-| `JWT_SECRET` | ✅ | Long random string for JWT signing |
-| `PYTHON_ML_URL` | ✅ | URL of the Flask ML service (`http://localhost:5000` locally) |
-| `ML_INTERNAL_SECRET` | ✅ | Shared secret between Node.js and Flask |
+You will need **two terminal windows**.
 
-### 3. Model Setup
-
-#### Option A — You have custom trained weights
-Place your trained model weights:
-```
-models/yolo/best.pt                          ← YOLOv8 trained on your fruit dataset
-models/efficientnet/efficientnet_v2.pth      ← EfficientNetV2-S 4-class quality model
-```
-
-Or use the download script:
-```bash
-# Set in .env:
-# YOLO_MODEL_DOWNLOAD_URL=https://your-host/best.pt
-# EFFICIENTNET_MODEL_DOWNLOAD_URL=https://your-host/efficientnet_v2.pth
-python scripts/download_models.py
-```
-
-#### Option B — No custom weights (real AI, COCO pretrained fallback)
-If `models/yolo/best.pt` is absent, the system **automatically downloads YOLOv8n** (pretrained on COCO) on first prediction. This enables real detection of:
-- 🍎 Apple (COCO class 47)
-- 🍌 Banana (COCO class 46)
-- 🍊 Orange (COCO class 49)
-
-Quality grading (Excellent/Good/Fair/Poor) uses real HSV color + texture analysis when custom EfficientNet weights are absent.
-
-> **For best accuracy**: train your EfficientNetV2-S on a fruit quality dataset (e.g., [Fruits 360](https://www.kaggle.com/datasets/moltean/fruits) or the [Fruit Quality Dataset](https://www.kaggle.com/datasets/shashwatwork/fruitqualitydataset)).
-
-### 4. Run Locally
-
-**Terminal 1 — Python ML Service:**
-```bash
+**Terminal 1 — Python Flask ML Service:**
+Make sure your virtual environment is active, then start Flask:
+```powershell
+# Inside fruit_grading_2 directory
+.\venv\Scripts\activate
+$env:FLASK_ENV="development"
+$env:PORT="5000"
 python -m backend.app
-# Starts Flask on http://localhost:5000
 ```
+*(Leave this running. It will listen on http://localhost:5000)*
 
-**Terminal 2 — Node.js Dev Server:**
-```bash
+**Terminal 2 — Node.js / React Dev Server:**
+Open a new PowerShell window, navigate to the folder, and start the Node app:
+```powershell
+# Inside fruit_grading_2 directory
 npm run dev
-# Starts Express + Vite on http://localhost:3000
 ```
+*(Leave this running. It will listen on http://localhost:3000)*
 
-Open **http://localhost:3000** in your browser.
-
-### 5. Test the Complete Flow
+### 7. View the Application
+Open your web browser and go to:
+**http://localhost:3000**
 
 1. Go to http://localhost:3000
 2. Click **Sign Up** → create an account

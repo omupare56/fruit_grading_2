@@ -237,7 +237,7 @@ export const VivaArchitectureView: React.FC = () => {
   "fruits": [
     {
       "fruit_id": 1,
-      "fruit_type": "Apple",
+      "fruit_type": "Apple", // Example fruit type for documentation
       "bounding_box": { "x1": 42, "y1": 50, ... },
       "detection_confidence": 0.94,
       "quality": { "class": "Good", "confidence": 0.88 },

@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import fs from 'fs';
+import { createServer as createViteServer } from 'vite';
 
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
@@ -156,6 +157,18 @@ function authenticatePrediction(req: AuthRequest, res: Response, next: NextFunct
     } catch {
       return apiError(res, 'INVALID_TOKEN', 'Session has expired or is invalid. Please log in again.', 401);
     }
+  }
+
+  if (!token) {
+    // Guest / Demo Flow
+    req.user = {
+      id: 'demo_user',
+      email: 'demo@fruitvision.com',
+      name: 'Demo User',
+      institution: 'Guest Demo',
+      role: 'Guest',
+    };
+    return next();
   }
 
   return apiError(res, 'AUTHENTICATION_REQUIRED', 'Please log in to continue.', 401);
@@ -566,7 +579,7 @@ app.get('/api/stats', async (req: Request, res: Response) => {
     try {
       const decoded = jwt.verify(authHeader.split(' ')[1], JWT_SECRET) as any;
       userId = decoded.sub || decoded.id;
-    } catch {}
+    } catch { }
   }
 
   const db = await getMongoDb();

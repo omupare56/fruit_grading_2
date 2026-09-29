@@ -1,12 +1,14 @@
 export type FruitType =
   | 'Apple'
   | 'Banana'
+  | 'Guava'
+  | 'Lemon'
   | 'Orange'
-  | 'Mango'
-  | 'Kiwi'
-  | 'Pear'
-  | 'Dragon Fruit'
-  | 'Other';
+  | 'Pomegranate'
+  | 'Unknown/Low Confidence'
+  | 'Unknown'
+  | 'Other'
+  | string;
 
 export type QualityCategory = 'Excellent' | 'Good' | 'Fair' | 'Poor';
 

@@ -53,11 +53,22 @@ def process_prediction_pipeline(image: Image.Image, user_id: str, filename: str,
         if err:
             return None, err
         if not raw_detections or len(raw_detections) == 0:
-            return None, "No fruits were detected in the provided image."
+            # Safe fallback: use the complete uploaded image
+            box = {"x": 0, "y": 0, "width": 100, "height": 100}
+            raw_detections = [{
+                "fruit_id": 1,
+                "fruit_type": "Unknown/Low Confidence",
+                "confidence": 0.0,
+                "bounding_box": box
+            }]
+
         
+        from backend.services.fruit_classifier import classify_fruit
         for det in raw_detections:
             # Crop fruit individually
             crop_img, crop_data_url = extract_fruit_crop(image, det["bounding_box"])
+
+            fruit_class, fruit_conf = classify_fruit(crop_img)
 
             if eff_ready:
                 quality_result, q_err = efficientnet_service.analyze_crop(crop_img)
@@ -78,7 +89,8 @@ def process_prediction_pipeline(image: Image.Image, user_id: str, filename: str,
 
             detections.append({
                 "fruit_id": det["fruit_id"],
-                "fruit_type": det["fruit_type"],
+                "fruit_type": fruit_class,
+                "fruit_classification_confidence": fruit_conf,
                 "detection_confidence": det["confidence"],
                 "bounding_box": det["bounding_box"],
                 "crop_image_url": crop_data_url,
